@@ -1,0 +1,10 @@
+[2023-11-13 13:46:05,165 INFO] Save config info.
+[2023-11-13 13:46:05,177 INFO] Set random seed: 2019
+[2023-11-13 13:46:05,395 INFO] Loaded the model to 1 GPUs
+[2023-11-13 13:46:05,395 INFO] # the number of parameters in the whole model: 11106975
+[2023-11-13 13:46:05,395 INFO] # the number of parameters in the Encoder: 8481600
+[2023-11-13 13:46:05,395 INFO] # the number of parameters in the Decoder: 2281280
+[2023-11-13 13:46:05,395 INFO] # the number of parameters in the JointNet: 344095
+[2023-11-13 13:46:05,748 INFO] Created a sgd optimizer.
+[2023-11-13 13:46:11,859 INFO] -Training-Epoch:0(1.38408%), Global Step:10, Learning Rate:0.001000, Grad Norm:0.05496, Loss:-118.14089, AverageLoss: -126.76719, Run Time:0.798
+[2023-11-13 13:46:18,889 INFO] -Training-Epoch:0(3.11419%), Global Step:20, Learning Rate:0.001000, Grad Norm:0.04890, Loss:-145.42357, AverageLoss: -128.47755, Run Time:0.708
