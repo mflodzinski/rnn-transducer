@@ -13,6 +13,7 @@ from rnnt.data import DataLoader
 from rnnt.utils import AttrDict, init_logger, count_parameters, save_model, computer_cer
 from rnnt.tokenizer import CharTokenizer
 from tqdm import tqdm
+from rnnt.utils import init_parameters
 
 def train(epoch, config, model, training_data, optimizer, logger, visualizer=None):
 
@@ -37,8 +38,8 @@ def train(epoch, config, model, training_data, optimizer, logger, visualizer=Non
 
         optimizer.zero_grad()
         start = time.process_time()
+        #print(targets)
         loss = model(inputs, inputs_length, targets, targets_length)
-        print(loss)
         loss = loss.mean()
         print(loss)
         loss.backward()
@@ -87,7 +88,7 @@ def eval(epoch, config, model, validating_data, logger, visualizer=None):
         inputs = inputs[:, :max_inputs_length, :]
         targets = targets[:, :max_targets_length]
 
-        preds = model.recognize(inputs, inputs_length)
+        preds = model.recognize_rnnt(inputs, inputs_length)
 
         transcripts = [targets.cpu().numpy()[i][:targets_length[i].item()]
                        for i in range(targets.size(0))]
@@ -135,8 +136,8 @@ def main():
 
     num_workers = config.training.num_gpu * 2
     tokenizer = get_tokenizer()
-    training_data = DataLoader('files/train.csv', tokenizer, 8, 100)
-    validate_data = DataLoader('files/test.csv', tokenizer, 8, 100)
+    training_data = DataLoader('files/train_newest.csv', tokenizer, 8, 250)
+    validate_data = DataLoader('files/test_newest.csv', tokenizer, 8, 250)
 
 
     if config.training.num_gpu > 0:
@@ -154,17 +155,8 @@ def main():
         model.decoder.load_state_dict(checkpoint['decoder'])
         model.joint.load_state_dict(checkpoint['joint'])
         logger.info('Loaded model from %s' % config.training.load_model)
-    elif config.training.load_encoder or config.training.load_decoder:
-        if config.training.load_encoder:
-            checkpoint = torch.load(config.training.load_encoder)
-            model.encoder.load_state_dict(checkpoint['encoder'])
-            logger.info('Loaded encoder from %s' %
-                        config.training.load_encoder)
-        if config.training.load_decoder:
-            checkpoint = torch.load(config.training.load_decoder)
-            model.decoder.load_state_dict(checkpoint['decoder'])
-            logger.info('Loaded decoder from %s' %
-                        config.training.load_decoder)
+    else:
+        init_parameters(model)
 
     if config.training.num_gpu > 0:
         model = model.cuda()
@@ -202,14 +194,14 @@ def main():
         train(epoch, config, model, training_data,
               optimizer, logger, visualizer)
 
-        if config.training.eval_or_not:
-            _ = eval(epoch, config, model, validate_data, logger, visualizer)
+        if config.training.eval_or_not and epoch>=10 and epoch%2==0:
+            _ = eval(epoch, config, model, validate_data, logger, visualizer)   
 
         save_name = os.path.join(exp_name, '%s.epoch%d.chkpt' % (config.training.save_model, epoch))
         save_model(model, optimizer, config, save_name)
         logger.info('Epoch %d model has been saved.' % epoch)
 
-        if epoch >= config.optim.begin_to_adjust_lr:
+        if epoch >= config.optim.begin_to_adjust_lr and epoch%5==0:
             optimizer.decay_lr()
             # early stop
             if optimizer.lr < 1e-6:

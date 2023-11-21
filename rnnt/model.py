@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from encoder import build_encoder
-from decoder import build_decoder
+from rnnt.encoder import build_encoder
+from rnnt.decoder import build_decoder
 # from warp_rnnt import rnnt_loss
 from warprnnt_pytorch import RNNTLoss
 
@@ -55,20 +55,22 @@ class Transducer(nn.Module):
             assert self.decoder.embedding.weight.size() == self.joint.project_layer.weight.size(), '%d != %d' % (self.decoder.embedding.weight.size(1),  self.joint.project_layer.weight.size(1))
             self.joint.project_layer.weight = self.decoder.embedding.weight
 
-        self.crit = RNNTLoss()
+        self.crit = RNNTLoss(blank=27,reduction='none')
 
     def forward(self, inputs, inputs_length, targets, targets_length):
 
         enc_state, _ = self.encoder(inputs, inputs_length)
-        concat_targets = F.pad(targets, pad=(1, 0, 0, 0), value=0)
+        concat_targets = F.pad(targets, pad=(1, 0, 0, 0), value=27)
 
         dec_state, _ = self.decoder(concat_targets, targets_length.add(1))
 
         logits = self.joint(enc_state, dec_state)
-        #logits = torch.nn.functional.log_softmax(logits)
-        loss = self.crit(logits, targets, inputs_length, targets_length)
-        # print(logits.dtype, targets.dtype, inputs_length.dtype, targets_length.dtype)
-        # print(type(logits), type(targets), type(inputs_length), type(targets_length))
+        loss = self.crit(logits, targets.contiguous(), inputs_length, targets_length)
+        print(loss)
+        for idx, l in enumerate(loss):
+            if l<0:
+                print(idx)
+                print(logits.size(), inputs.size(), inputs_length.size(), targets.size())
         return loss
 
     def recognize(self, inputs, inputs_length):
@@ -77,7 +79,7 @@ class Transducer(nn.Module):
 
         enc_states, _ = self.encoder(inputs, inputs_length)
 
-        zero_token = torch.LongTensor([[0]])
+        zero_token = torch.LongTensor([[27]])
         if inputs.is_cuda:
             zero_token = zero_token.cuda()
 
@@ -92,7 +94,7 @@ class Transducer(nn.Module):
                 pred = torch.argmax(out, dim=0)
                 pred = int(pred.item())
 
-                if pred != 0:
+                if pred != 27:
                     token_list.append(pred)
                     token = torch.LongTensor([[pred]])
 
@@ -106,6 +108,53 @@ class Transducer(nn.Module):
         results = []
         for i in range(batch_size):
             decoded_seq = decode(enc_states[i], inputs_length[i])
+            results.append(decoded_seq)
+
+        return results
+
+
+    def recognize_rnnt(self, inputs, input_lengths):
+
+        assert inputs.dim() == 3
+        # f = [batch_size, time_step, feature_dim]
+        f, _ = self.encoder(inputs, input_lengths)
+        blank = 27
+        zero_token = torch.LongTensor([[blank]])
+        if inputs.is_cuda:
+            zero_token = zero_token.cuda()
+        results = []
+        batch_size = inputs.size(0)
+
+
+        def decode(inputs, lengths):
+            log_prob = 0
+            token_list = []
+            umax = 200
+            u = 0
+            t = 0
+            gu, hidden = self.decoder(zero_token)
+
+            while t < lengths and u < umax:
+                h = self.joint(inputs[t].view(-1), gu.view(-1))
+                out = F.log_softmax(h, dim=0)
+                prob, pred = torch.max(out, dim=0)
+                pred = int(pred.item())
+                log_prob += prob.item()
+
+                if pred != blank:
+                    token_list.append(pred)
+                    token = torch.LongTensor([[pred]])
+                    if zero_token.is_cuda:
+                        token = token.cuda()
+                    gu, hidden = self.decoder(token, hidden=hidden)
+                    u += 1
+                else:
+                    t += 1
+
+            return token_list
+
+        for i in range(batch_size):
+            decoded_seq = decode(f[i], input_lengths[i])
             results.append(decoded_seq)
 
         return results
