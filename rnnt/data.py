@@ -108,7 +108,7 @@ class DataLoader(BaseData):
 
     def get_texts(self, start_idx: int, end_idx: int) -> Tuple[Tensor, torch.IntTensor]:
         args = self.df['text'].iloc[start_idx:end_idx]
-        lengths = [len(x) for x in args.values]
+        lengths = [len(x) + 1 for x in args.values]
         max_len = self.get_max_text_length(start_idx, end_idx)
         result = torch.stack([self._get_padded_tokens(text, max_len) for text in args], dim=0)
         return result.to(torch.int32), torch.IntTensor(lengths)

@@ -194,7 +194,7 @@ def main():
         train(epoch, config, model, training_data,
               optimizer, logger, visualizer)
 
-        if config.training.eval_or_not and epoch>=10 and epoch%2==0:
+        if config.training.eval_or_not and epoch>=50 and epoch%2==0:
             _ = eval(epoch, config, model, validate_data, logger, visualizer)   
 
         save_name = os.path.join(exp_name, '%s.epoch%d.chkpt' % (config.training.save_model, epoch))

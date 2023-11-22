@@ -115,9 +115,9 @@ if __name__ =="__main__":
     test_data = DataLoader('files/test_newest.csv', tokenizer, 8, 250)
     training_data = DataLoader('files/train_newest.csv', tokenizer, 8, 250)
 
-    path = "compare_basic_test.txt"
+    path = "compare_rnnt_new_test.txt"
     for step, (inputs, inputs_length, targets, targets_length) in enumerate(test_data):
-        preds = GreedyDecode(model, inputs, inputs_length)
+        preds = GreedyDecodeRNNT(model, inputs, inputs_length)
         preds = tokenizer.ids2tokens(preds)
         for l in preds:
             sentence = "".join(l)

@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from rnnt.encoder import build_encoder
-from rnnt.decoder import build_decoder
+from encoder import build_encoder
+from decoder import build_decoder
 # from warp_rnnt import rnnt_loss
 from warprnnt_pytorch import RNNTLoss
 
