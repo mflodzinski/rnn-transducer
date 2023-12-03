@@ -39,7 +39,7 @@ class CharTokenizer:
 
     def ids2tokens(self, ids):
         tokens = []
-
+        space_id = 28
         # Iterate over rows and columns
         for row_ids in ids:
             row_tokens = [self._id_to_token[id] for id in row_ids]

@@ -3,7 +3,7 @@ import torch.nn as nn
 
 
 class BaseEncoder(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, n_layers, dropout=0.2, bidirectional=True):
+    def __init__(self, input_size, hidden_size, output_size, n_layers, dropout, bidirectional=True):
         super(BaseEncoder, self).__init__()
 
         self.lstm = nn.LSTM(

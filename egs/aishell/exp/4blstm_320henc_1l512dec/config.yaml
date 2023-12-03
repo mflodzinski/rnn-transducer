@@ -6,8 +6,8 @@ data:
     vocab: egs/aishell/data/vocab
     left_context_width: 3
     right_context_width: 0
-    max_target_length: 400
-    batch_size: 8
+    max_target_length: 50
+    batch_size: 16
     short_first: True
     shuffle: False
     train: egs/aishell/data/train
@@ -29,26 +29,26 @@ model:
     joint:
         input_size: 160
         inner_size: 256
-    vocab_size: 31
+    vocab_size: 29
     share_weight: False
     feature_dim: 30
-    dropout: 0.3
+    dropout: 0.0
 training:
-    load_model: 'egs/aishell/exp/4blstm_320henc_1l512dec/_stay_night.chkpt'
+    load_model: 'egs/aishell/exp/4blstm_320henc_1l512dec/best_so_far.chkpt'
     load_encoder: False
     load_decoder: False
     eval_or_not: True
-    seed: 2019
+    seed: 1342
     num_gpu: 1
-    epochs: 60
+    epochs: 100
     max_grad_norm: 200
-    visualization: False
+    visualization: True
     show_interval: 10
     save_model: 4blstm_320henc_1l512dec
 optim:
     type: sgd
-    lr: 0.00016
+    lr: 0.0012
     momentum: 0.9
-    decay_ratio: 0.8
+    decay_ratio: 0.9
     weight_decay: 0
-    begin_to_adjust_lr: 10
+    begin_to_adjust_lr: 20

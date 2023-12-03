@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from encoder import build_encoder
-from decoder import build_decoder
+from rnnt.encoder import build_encoder
+from rnnt.decoder import build_decoder
 # from warp_rnnt import rnnt_loss
 from warprnnt_pytorch import RNNTLoss
 
@@ -66,7 +66,7 @@ class Transducer(nn.Module):
 
         logits = self.joint(enc_state, dec_state)
         loss = self.crit(logits, targets.contiguous(), inputs_length, targets_length)
-        print(loss)
+        #print(loss)
         for idx, l in enumerate(loss):
             if l<0:
                 print(idx)
@@ -129,7 +129,7 @@ class Transducer(nn.Module):
         def decode(inputs, lengths):
             log_prob = 0
             token_list = []
-            umax = 200
+            umax = 40
             u = 0
             t = 0
             gu, hidden = self.decoder(zero_token)

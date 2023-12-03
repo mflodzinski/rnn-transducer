@@ -3,7 +3,7 @@ import torch.nn as nn
 
 
 class BaseDecoder(nn.Module):
-    def __init__(self, hidden_size, vocab_size, output_size, n_layers, dropout=0.2, share_weight=False):
+    def __init__(self, hidden_size, vocab_size, output_size, n_layers, dropout, share_weight=False):
         super(BaseDecoder, self).__init__()
 
         self.embedding = nn.Embedding(vocab_size, hidden_size, padding_idx=0)
@@ -22,7 +22,6 @@ class BaseDecoder(nn.Module):
             self.embedding.weight = self.output_proj.weight
 
     def forward(self, inputs, length=None, hidden=None):
-
         embed_inputs = self.embedding(inputs)
 
         if length is not None:

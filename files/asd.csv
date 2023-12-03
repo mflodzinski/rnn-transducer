@@ -1,0 +1,4 @@
+audio_path,text,start,end
+data/TRAIN/DR4/MCSS0/SX300.WAV,_amoebas_,2240,10750
+data/TRAIN/DR4/MCSS0/SX300.WAV,_change_,10750,17253
+data/TRAIN/DR4/MCSS0/SX300.WAV,_shape_,17253,24660

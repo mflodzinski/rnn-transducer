@@ -8,15 +8,16 @@ import torch.nn as nn
 import torch.utils.data
 from rnnt.model import Transducer
 from rnnt.optim import Optimizer
-from rnnt.data import DataLoader
-# from tensorboardX import SummaryWriter
+from rnnt.data import TrainDataLoader, TestDataLoader
 from rnnt.utils import AttrDict, init_logger, count_parameters, save_model, computer_cer
 from rnnt.tokenizer import CharTokenizer
 from tqdm import tqdm
 from rnnt.utils import init_parameters
+from tensorboardX import SummaryWriter
 
 def train(epoch, config, model, training_data, optimizer, logger, visualizer=None):
-
+    model.encoder.lstm.dropout = config.model.dropout
+    model.decoder.lstm.dropout = config.model.dropout
     model.train()
     start_epoch = time.process_time()
     total_loss = 0 
@@ -41,7 +42,7 @@ def train(epoch, config, model, training_data, optimizer, logger, visualizer=Non
         #print(targets)
         loss = model(inputs, inputs_length, targets, targets_length)
         loss = loss.mean()
-        print(loss)
+        #print(loss)
         loss.backward()
 
         total_loss += loss.item()
@@ -51,12 +52,6 @@ def train(epoch, config, model, training_data, optimizer, logger, visualizer=Non
 
         optimizer.step()
 
-        if visualizer is not None:
-            visualizer.add_scalar(
-                'train_loss', loss.item(), optimizer.global_step)
-            visualizer.add_scalar(
-                'learn_rate', optimizer.lr, optimizer.global_step)
-
         avg_loss = total_loss / (step + 1)
         if optimizer.global_step % config.training.show_interval == 0:
             end = time.process_time()
@@ -65,6 +60,9 @@ def train(epoch, config, model, training_data, optimizer, logger, visualizer=Non
                         'AverageLoss: %.5f, Run Time:%.3f' % (epoch, process, optimizer.global_step, optimizer.lr,
                                                               grad_norm, loss.item(), avg_loss, end-start))
 
+    if visualizer is not None:
+        visualizer.add_scalar(
+            'avg_train_loss', avg_loss, optimizer.global_step)
         # break
     end_epoch = time.process_time()
     logger.info('-Training-Epoch:%d, Average Loss: %.5f, Epoch Time: %.3f' %
@@ -72,11 +70,15 @@ def train(epoch, config, model, training_data, optimizer, logger, visualizer=Non
 
 
 def eval(epoch, config, model, validating_data, logger, visualizer=None):
+    model.encoder.lstm.dropout = 0
+    model.decoder.lstm.dropout = 0
     model.eval()
     total_loss = 0
     total_dist = 0
     total_word = 0
     batch_steps = len(validating_data)
+
+
     for step, (inputs, inputs_length, targets, targets_length) in enumerate(validating_data):
 
         if config.training.num_gpu > 0:
@@ -92,6 +94,8 @@ def eval(epoch, config, model, validating_data, logger, visualizer=None):
 
         transcripts = [targets.cpu().numpy()[i][:targets_length[i].item()]
                        for i in range(targets.size(0))]
+        preds = [pred[1:-1] for pred in preds]
+        transcripts = [transcript[1:-1] for transcript in transcripts]
 
         dist, num_words = computer_cer(preds, transcripts)
         total_dist += dist
@@ -108,6 +112,53 @@ def eval(epoch, config, model, validating_data, logger, visualizer=None):
 
     if visualizer is not None:
         visualizer.add_scalar('cer', cer, epoch)
+
+    return cer
+
+def eval_train(epoch, config, model, training_data, logger, visualizer=None):
+    model.encoder.lstm.dropout = 0
+    model.decoder.lstm.dropout = 0
+    model.eval()
+    total_loss = 0
+    total_dist = 0
+    total_word = 0
+    batch_steps = len(training_data)
+
+
+    for step, (inputs, inputs_length, targets, targets_length) in enumerate(training_data):
+
+        if config.training.num_gpu > 0:
+            inputs, inputs_length = inputs.cuda(), inputs_length.cuda()
+            targets, targets_length = targets.cuda(), targets_length.cuda()
+
+        max_inputs_length = inputs_length.max().item()
+        max_targets_length = targets_length.max().item()
+        inputs = inputs[:, :max_inputs_length, :]
+        targets = targets[:, :max_targets_length]
+
+        preds = model.recognize_rnnt(inputs, inputs_length)
+
+        transcripts = [targets.cpu().numpy()[i][:targets_length[i].item()]
+                       for i in range(targets.size(0))]
+
+        preds = [pred[1:-1] for pred in preds]
+        transcripts = [transcript[1:-1]for transcript in transcripts]
+
+        dist, num_words = computer_cer(preds, transcripts)
+        total_dist += dist
+        total_word += num_words
+
+        cer = total_dist / total_word * 100
+        if step % config.training.show_interval == 0:
+            process = step / batch_steps * 100
+            logger.info('-Validation-Epoch:%d(%.5f%%), CER: %.5f %%' % (epoch, process, cer))
+
+    val_loss = total_loss/(step+1)
+    logger.info('-Validation-Epoch:%4d, AverageLoss:%.5f, AverageCER: %.5f %%' %
+                (epoch, val_loss, cer))
+
+    if visualizer is not None:
+        visualizer.add_scalar('cer_train', cer, epoch)
 
     return cer
 
@@ -136,8 +187,7 @@ def main():
 
     num_workers = config.training.num_gpu * 2
     tokenizer = get_tokenizer()
-    training_data = DataLoader('files/train_newest.csv', tokenizer, 8, 250)
-    validate_data = DataLoader('files/test_newest.csv', tokenizer, 8, 250)
+
 
 
     if config.training.num_gpu > 0:
@@ -149,14 +199,24 @@ def main():
 
     model = Transducer(config.model)
 
+
     if config.training.load_model:
         checkpoint = torch.load(config.training.load_model)
         model.encoder.load_state_dict(checkpoint['encoder'])
         model.decoder.load_state_dict(checkpoint['decoder'])
         model.joint.load_state_dict(checkpoint['joint'])
         logger.info('Loaded model from %s' % config.training.load_model)
-    else:
-        init_parameters(model)
+    elif config.training.load_encoder or config.training.load_decoder:
+        if config.training.load_encoder:
+            checkpoint = torch.load(config.training.load_encoder)
+            model.encoder.load_state_dict(checkpoint['encoder'])
+            logger.info('Loaded encoder from %s' %
+                        config.training.load_encoder)
+        if config.training.load_decoder:
+            checkpoint = torch.load(config.training.load_decoder)
+            model.decoder.load_state_dict(checkpoint['decoder'])
+            logger.info('Loaded decoder from %s' %
+                        config.training.load_decoder)
 
     if config.training.num_gpu > 0:
         model = model.cuda()
@@ -184,26 +244,33 @@ def main():
 
     # create a visualizer
     if config.training.visualization:
-        # visualizer = SummaryWriter(os.path.join(exp_name, 'log'))
+        visualizer = SummaryWriter(os.path.join(exp_name, 'log'))
         logger.info('Created a visualizer.')
     else:
         visualizer = None
 
+    validate_data = TrainDataLoader('files/test_fragment.csv', tokenizer, 16, 50)
+    training_data = TrainDataLoader('files/train_final.csv', tokenizer, 16, 50)
+    train_eval_data = TrainDataLoader('files/train_fragment.csv', tokenizer, 16, 50)
+
     for epoch in range(start_epoch, config.training.epochs):
+    
 
         train(epoch, config, model, training_data,
               optimizer, logger, visualizer)
 
-        if config.training.eval_or_not and epoch>=50 and epoch%2==0:
+        if config.training.eval_or_not and epoch>=0 and epoch%3==0:
             _ = eval(epoch, config, model, validate_data, logger, visualizer)   
+            _ = eval_train(epoch, config, model, train_eval_data, logger, visualizer)
 
         save_name = os.path.join(exp_name, '%s.epoch%d.chkpt' % (config.training.save_model, epoch))
-        save_model(model, optimizer, config, save_name)
+        if epoch%5==0:
+            save_model(model, optimizer, config, save_name)
         logger.info('Epoch %d model has been saved.' % epoch)
 
-        if epoch >= config.optim.begin_to_adjust_lr and epoch%5==0:
+        if epoch >= config.optim.begin_to_adjust_lr and epoch%8==0:
             optimizer.decay_lr()
-            # early stop
+            # early stop    
             if optimizer.lr < 1e-6:
                 logger.info('The learning rate is too low to train.')
                 break
