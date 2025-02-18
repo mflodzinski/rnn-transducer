@@ -1,0 +1,57 @@
+data:
+    name: timit
+    exp_name: info
+    window_type: hamming
+    win_size: 400
+    hop_size: 160
+    num_ceps: 13
+    num_mel_bins: 26
+    train_data: train_data.csv
+    test_data: test_data.csv
+    core_train: _core_train.csv
+    core_test: _core_test.csv
+    core_val: _core_val.csv
+    
+model:
+    max_length: 150
+    num_features: 26
+    enc:
+        type: lstm
+        hidden_size: 128
+        output_size: 30
+        num_layers: 2
+        bidirectional: True
+        dropout: 0.2
+    dec:
+        type: lstm
+        hidden_size: 128
+        output_size: 30
+        num_layers: 1
+        dropout: 0
+    joint:
+        inner_size: 60
+training:
+    seed: 1942
+    batch_size: 1
+    epochs: 100
+    max_grad_norm: 100
+    show_every: 100
+    save_every: 5
+    load_model: False
+    evaluate: True
+    visualization: True
+
+optim:
+    min_lr: 0.0001
+    begin_to_adjust_lr: 5
+    adjust_every: 5
+    decay_ratio: 0.9
+    type: sgd
+    lr: 0.0002
+    momentum: 0.9
+    weight_decay: 0.01
+    betas: (0.9, 0.999)
+    eps: 1e-08
+    nesterov: True
+    fused: True
+
